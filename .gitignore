@@ -10,6 +10,7 @@
 /.nova
 /.phpunit.cache
 /.vscode
+/.vagrant
 /.zed
 /auth.json
 /node_modules
@@ -22,3 +23,11 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+npm-debug.log
+yarn-error.log
+
+# Laravel legacy versions
+bootstrap/compiled.php
+app/storage/
+public_html/storage
+public_html/hot
