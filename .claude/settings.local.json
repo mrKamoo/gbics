@@ -12,7 +12,18 @@
       "Bash(rm -rf temp-laravel)",
       "Bash(git init)",
       "Bash(git remote add origin https://github.com/mrKamoo/gbics.git)",
-      "Bash(git add .)"
+      "Bash(git add .)",
+      "Bash(php artisan:*)",
+      "Bash(composer install:*)",
+      "Bash(php -r:*)",
+      "Bash(composer require:*)",
+      "Bash(npm create vue:*)",
+      "Bash(npx create-vue@latest)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss init -p)",
+      "Bash(npm run dev)",
+      "Bash(npm uninstall:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
