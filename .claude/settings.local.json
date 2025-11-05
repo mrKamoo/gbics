@@ -23,7 +23,8 @@
       "Bash(npx tailwindcss init -p)",
       "Bash(npm run dev)",
       "Bash(npm uninstall:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
