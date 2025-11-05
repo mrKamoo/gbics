@@ -4,27 +4,193 @@ namespace App\Services;
 
 use App\Models\FsComProduct;
 use GuzzleHttp\Client;
+use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Exception\RequestException;
 use Symfony\Component\DomCrawler\Crawler;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class FsComScraperService
 {
     protected $client;
-    protected $baseUrl = 'https://www.fs.com';
+    protected $baseUrl;
+    protected $cookieJar;
+    protected $requestCount = 0;
+    protected $maxRetries;
+    protected $delayBetweenRequests;
+    protected $userAgents;
 
     public function __construct()
     {
-        $this->client = new Client([
+        // Load configuration
+        $this->baseUrl = config('fscom.base_url', 'https://www.fs.com');
+        $this->maxRetries = config('fscom.max_retries', 3);
+        $this->delayBetweenRequests = config('fscom.delay_between_requests', 2000);
+        $this->userAgents = config('fscom.user_agents', [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ]);
+
+        $this->cookieJar = new CookieJar();
+
+        // Build client configuration
+        $clientConfig = [
             'verify' => false,
-            'headers' => [
-            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
-            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'cookies' => $this->cookieJar,
+            'timeout' => config('fscom.timeout', 45),
+            'connect_timeout' => 10,
+            'allow_redirects' => true,
+            'http_errors' => false, // Handle errors manually
+        ];
+
+        // Add proxy if configured
+        if (config('fscom.proxy.enabled', false)) {
+            $proxyHost = config('fscom.proxy.host');
+            $proxyPort = config('fscom.proxy.port');
+            $proxyUsername = config('fscom.proxy.username');
+            $proxyPassword = config('fscom.proxy.password');
+
+            if ($proxyHost && $proxyPort) {
+                $proxyUrl = $proxyUsername && $proxyPassword
+                    ? "http://{$proxyUsername}:{$proxyPassword}@{$proxyHost}:{$proxyPort}"
+                    : "http://{$proxyHost}:{$proxyPort}";
+
+                $clientConfig['proxy'] = [
+                    'http' => $proxyUrl,
+                    'https' => $proxyUrl,
+                ];
+
+                Log::info("Using proxy: {$proxyHost}:{$proxyPort}");
+            }
+        }
+
+        $this->client = new Client($clientConfig);
+    }
+
+    /**
+     * Get random user agent
+     */
+    protected function getRandomUserAgent()
+    {
+        return $this->userAgents[array_rand($this->userAgents)];
+    }
+
+    /**
+     * Get request headers with anti-detection
+     */
+    protected function getHeaders($referer = null)
+    {
+        return [
+            'User-Agent' => $this->getRandomUserAgent(),
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language' => 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
             'Accept-Encoding' => 'gzip, deflate, br',
-            'Referer' => 'https://www.fs.com/fr/',
-            ],
-            'timeout' => 30,
-        ]);
+            'Cache-Control' => 'max-age=0',
+            'Sec-Ch-Ua' => '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'Sec-Ch-Ua-Mobile' => '?0',
+            'Sec-Ch-Ua-Platform' => '"Windows"',
+            'Sec-Fetch-Dest' => 'document',
+            'Sec-Fetch-Mode' => 'navigate',
+            'Sec-Fetch-Site' => $referer ? 'same-origin' : 'none',
+            'Sec-Fetch-User' => '?1',
+            'Upgrade-Insecure-Requests' => '1',
+            'Referer' => $referer ?? $this->baseUrl . '/fr/',
+            'DNT' => '1',
+        ];
+    }
+
+    /**
+     * Make HTTP request with retry logic and rate limiting
+     */
+    protected function makeRequest($url, $referer = null)
+    {
+        $attempt = 0;
+
+        while ($attempt < $this->maxRetries) {
+            try {
+                // Rate limiting: add delay between requests
+                if ($this->requestCount > 0) {
+                    $delay = $this->delayBetweenRequests + rand(500, 1500); // Random jitter
+                    usleep($delay * 1000); // Convert to microseconds
+                }
+
+                Log::info("Making request to: {$url} (attempt " . ($attempt + 1) . ")");
+
+                $response = $this->client->get($url, [
+                    'headers' => $this->getHeaders($referer)
+                ]);
+
+                $this->requestCount++;
+                $statusCode = $response->getStatusCode();
+
+                // Check for successful response
+                if ($statusCode === 200) {
+                    Log::info("Request successful: {$url}");
+                    return $response->getBody()->getContents();
+                }
+
+                // Handle rate limiting (429) or server errors (5xx)
+                if ($statusCode === 429 || $statusCode >= 500) {
+                    $waitTime = pow(2, $attempt) * 5; // Exponential backoff
+                    Log::warning("Got status {$statusCode}, waiting {$waitTime}s before retry");
+                    sleep($waitTime);
+                    $attempt++;
+                    continue;
+                }
+
+                // Check for blocking (403, 401)
+                if (in_array($statusCode, [403, 401])) {
+                    Log::error("Access denied (status {$statusCode}): {$url}");
+
+                    // Try to get a fresh session
+                    if ($attempt === 0) {
+                        $this->refreshSession();
+                    }
+
+                    $attempt++;
+                    continue;
+                }
+
+                Log::error("Unexpected status code {$statusCode} for: {$url}");
+                return null;
+
+            } catch (RequestException $e) {
+                Log::error("Request failed: " . $e->getMessage());
+                $attempt++;
+
+                if ($attempt < $this->maxRetries) {
+                    $waitTime = pow(2, $attempt);
+                    Log::info("Retrying in {$waitTime}s...");
+                    sleep($waitTime);
+                }
+            }
+        }
+
+        Log::error("Failed to fetch {$url} after {$this->maxRetries} attempts");
+        return null;
+    }
+
+    /**
+     * Refresh session by visiting homepage
+     */
+    protected function refreshSession()
+    {
+        Log::info("Refreshing session...");
+
+        try {
+            // Clear existing cookies
+            $this->cookieJar = new CookieJar();
+
+            // Visit homepage to get fresh cookies
+            $this->client->get($this->baseUrl . '/fr/', [
+                'headers' => $this->getHeaders(),
+                'cookies' => $this->cookieJar,
+            ]);
+
+            sleep(2); // Wait a bit after homepage visit
+
+        } catch (\Exception $e) {
+            Log::warning("Failed to refresh session: " . $e->getMessage());
+        }
     }
 
     /**
@@ -75,9 +241,19 @@ class FsComScraperService
         ];
 
         try {
+            // First, visit homepage to establish session
+            if ($this->requestCount === 0) {
+                $this->refreshSession();
+            }
+
             $fullUrl = $this->baseUrl . $url;
-            $response = $this->client->get($fullUrl);
-            $html = $response->getBody()->getContents();
+            $html = $this->makeRequest($fullUrl, $this->baseUrl . '/fr/');
+
+            if (!$html) {
+                Log::error("Failed to fetch category page: {$fullUrl}");
+                return $stats;
+            }
+
             $crawler = new Crawler($html);
 
             // Example: scrape product listings
@@ -150,9 +326,17 @@ class FsComScraperService
     protected function scrapeProductDetails(string $url)
     {
         try {
-            $fullUrl = $this->baseUrl . $url;
-            $response = $this->client->get($fullUrl);
-            $html = $response->getBody()->getContents();
+            $fullUrl = str_starts_with($url, 'http') ? $url : $this->baseUrl . $url;
+            $html = $this->makeRequest($fullUrl, $this->baseUrl . '/fr/');
+
+            if (!$html) {
+                Log::warning("Failed to fetch product details: {$fullUrl}");
+                return [
+                    'description' => null,
+                    'specifications' => null,
+                ];
+            }
+
             $crawler = new Crawler($html);
 
             $description = $this->extractText($crawler, '.product-description');
