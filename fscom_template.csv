@@ -1,0 +1,3 @@
+sku,name,category,description,specifications,price,currency,url,image_url
+SFP-10G-SR,"10GBASE-SR SFP+ Transceiver",gbic,"SFP+ 10G 850nm 300m DOM Duplex LC MMF","{""wavelength"":""850nm"",""distance"":""300m"",""connector"":""LC"",""fiber_type"":""MMF""}",15.00,USD,https://www.fs.com/fr/products/11774.html,https://img-en.fs.com/file/user_manual/10gbase-sr-sfp-transceiver.jpg
+LC-LC-OM3-1M,"LC to LC OM3 Duplex Fiber Patch Cable",patch_cord,"LC/UPC to LC/UPC Duplex OM3 Multimode 1m","{""length"":""1m"",""connector_a"":""LC/UPC"",""connector_b"":""LC/UPC"",""fiber_type"":""OM3""}",3.50,USD,https://www.fs.com/fr/products/40197.html,https://img-en.fs.com/file/user_manual/lc-lc-om3-duplex-patch-cable.jpg
