@@ -61,11 +61,30 @@ php artisan make:migration create_table_name
 php artisan make:model ModelName -m
 ```
 
-### Artisan Commands (to be implemented)
-```bash
-# Sync FS.com catalog
-php artisan fscom:sync
+### Artisan Commands
 
+#### FS.com Catalog Management (CSV Import - IMPLEMENTED ✅)
+```bash
+# Generate CSV template with examples
+php artisan fscom:template [filename]
+
+# Import products from CSV
+php artisan fscom:import catalogue.csv [--dry-run] [--show-errors]
+
+# Export products to CSV
+php artisan fscom:export [filename] [--category=gbic|patch_cord]
+
+# Test site access (for debugging scraper)
+php artisan fscom:test [url]
+
+# Sync FS.com catalog (web scraping - currently blocked by Cloudflare)
+php artisan fscom:sync
+```
+
+**Note:** Web scraping is currently blocked by FS.com protections. Use CSV import instead (see `docs/CSV_IMPORT_GUIDE.md`).
+
+#### Other Commands (to be implemented)
+```bash
 # Check and generate alerts
 php artisan alerts:check
 
