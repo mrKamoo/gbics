@@ -83,6 +83,8 @@ php artisan fscom:sync
 
 **Note:** Web scraping is currently blocked by FS.com protections. Use CSV import instead (see `docs/CSV_IMPORT_GUIDE.md`).
 
+**Admin Web Interface:** FS.com catalog can also be managed via the web interface at `/admin/fscom-catalog` (requires admin role). See `docs/ADMIN_CSV_MANAGEMENT.md` for details.
+
 #### Other Commands (to be implemented)
 ```bash
 # Check and generate alerts

@@ -24,7 +24,8 @@
       "Bash(npm run dev)",
       "Bash(npm uninstall:*)",
       "Bash(curl:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": [],
     "ask": []

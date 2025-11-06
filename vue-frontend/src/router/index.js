@@ -76,6 +76,12 @@ const routes = [
         name: 'Settings',
         component: () => import('@/views/admin/Settings.vue'),
         meta: { requiresRole: ['super_admin', 'admin'] }
+      },
+      {
+        path: '/admin/fscom-catalog',
+        name: 'FsComCatalog',
+        component: () => import('@/views/admin/FsComCatalog.vue'),
+        meta: { requiresRole: ['super_admin', 'admin'] }
       }
     ]
   }

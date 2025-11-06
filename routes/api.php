@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\FsComCatalogController;
 use App\Http\Controllers\Admin\UserApprovalController;
 use App\Http\Controllers\Asset\GbicController;
 use App\Http\Controllers\Asset\NetworkSwitchController;
@@ -45,6 +46,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{user}/reject', [UserApprovalController::class, 'reject']);
         Route::put('/{user}/role', [UserApprovalController::class, 'updateRole']);
         Route::delete('/{user}', [UserApprovalController::class, 'destroy']);
+    });
+
+    // Admin - FS.com Catalog Management (CSV Import/Export)
+    Route::prefix('admin/fscom-catalog')->middleware('role:super_admin|admin')->group(function () {
+        Route::get('/', [FsComCatalogController::class, 'index']);
+        Route::get('/stats', [FsComCatalogController::class, 'stats']);
+        Route::post('/template', [FsComCatalogController::class, 'generateTemplate']);
+        Route::post('/validate', [FsComCatalogController::class, 'validateCsv']);
+        Route::post('/import', [FsComCatalogController::class, 'import']);
+        Route::post('/export', [FsComCatalogController::class, 'export']);
+        Route::delete('/{product}', [FsComCatalogController::class, 'destroy']);
+        Route::post('/bulk-delete', [FsComCatalogController::class, 'bulkDelete']);
     });
 
     // Sites
